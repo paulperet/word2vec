@@ -40,11 +40,23 @@ Create a dataset
 ```bash
 python3 create-dataset.py --source-file SOURCE_FILE [--target-file TARGET_FILE] [--window WINDOW] [--max-training-examples MAX_TRAINING_EXAMPLES] [--negative-examples NEGATIVE_EXAMPLES]
 ```
+- source file: your input text (recommended: large text file > 140mb)
+- target file: name the exported dataset
+- window: this is the range of context words that will be taken for each word (recommended: 5 for good syntaxic understanding, 10 for good semantic understanding)
+- max training examples: maximum length of the dataset (recommended: at least 100m but you can go up to 1B and more for good quality embeddings)
+- negative examples: number of randomly sampled examples (recommended: 5 for large datasets 20 for small datasets)
 
 Train a word2vec model
 ```bash
 python3 train.py --dataset-path DATASET_PATH [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH]
 ```
+- dataset path: path of the created dataset
+- output file: name the exported model
+- epochs: number of training cycles (you can go very low 1-5 epochs on very large datasets)
+- learning rate: how much should the embeddings be updated at each optimizer step (1e-3 to 1e-4 are good starting numbers)
+- embedding dim: number of dimensions for the representation of a word (100-1000 is a recommended range, 300 is a good value)
+- batch size: how many examples are used to compute the gradient (I recommend using large batches for this task 1024 or more)
+- checkpoint path: resume training of a model
 
 ## How to use these trained embeddings in your project
 
