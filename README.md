@@ -2,8 +2,10 @@
 
 This program can be used to train word embeddings from any text file (with BERT tokenizer).
 
-This is an implementation of the paper : Mikolov, Tomas & Sutskever, Ilya & Chen, Kai & Corrado, G.s & Dean, Jeffrey. (2013). 
-Distributed Representations of Words and Phrases and their Compositionality. Advances in Neural Information Processing Systems. 26. 
+This is an implementation of the paper : 
+
+Mikolov, Tomas & Sutskever, Ilya & Chen, Kai & Corrado, G.s & Dean, Jeffrey. (2013). 
+Distributed Representations of Words and Phrases and their Compositionality. Advances in Neural Information Processing Systems.
 
 ## Installation
 Project used Python 3.12.9 but other versions may be suitable
@@ -36,7 +38,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-Create a dataset
+### Create a dataset
 ```bash
 python3 create-dataset.py --source-file SOURCE_FILE [--target-file TARGET_FILE] [--window WINDOW] [--max-training-examples MAX_TRAINING_EXAMPLES] [--negative-examples NEGATIVE_EXAMPLES]
 ```
@@ -46,7 +48,7 @@ python3 create-dataset.py --source-file SOURCE_FILE [--target-file TARGET_FILE] 
 - max training examples: maximum length of the dataset (recommended: at least 100m but you can go up to 1B and more for good quality embeddings)
 - negative examples: number of randomly sampled examples (recommended: 5 for large datasets 20 for small datasets)
 
-Train a word2vec model
+### Train a word2vec model
 ```bash
 python3 train.py --dataset-path DATASET_PATH [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH]
 ```
@@ -57,6 +59,14 @@ python3 train.py --dataset-path DATASET_PATH [--output-file OUTPUT_FILE] --epoch
 - embedding dim: number of dimensions for the representation of a word (100-1000 is a recommended range, 300 is a good value)
 - batch size: how many examples are used to compute the gradient (I recommend using large batches for this task 1024 or more)
 - checkpoint path: resume training of a model
+
+### Evaluate emebeddings quality
+```bash
+python3 evaluate.py --checkpoint-path CHECKPOINT_PATH
+```
+This will give you an idea of the quality of your embeddings on the wordsim353 dataset which is a human annotated dataset on words similarity. As a guideline, good embeddings usually have a 60-70% accuracy on this benchmark. The dataset is credited to:
+
+Finkelstein, Lev, et al. "Placing search in context: The concept revisited." Proceedings of the 10th international conference on World Wide Web. ACM, 2001.
 
 ## How to use these trained embeddings in your project
 
