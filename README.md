@@ -4,7 +4,7 @@ This program can be used to train a word embedding model from any text file (wit
 This is an implementation of: Mikolov, Tomas & Sutskever, Ilya & Chen, Kai & Corrado, G.s & Dean, Jeffrey. (2013). 
 Distributed Representations of Words and Phrases and their Compositionality. Advances in Neural Information Processing Systems. 26. 
 
-# Installation
+## Installation
 Project used Python 3.12.9 but other versions may be suitable
 
 Clone the project:
@@ -33,7 +33,7 @@ pip install -r requirements
 ```
 
 
-# Usage
+## Usage
 
 Create a dataset
 ```bash
@@ -45,7 +45,7 @@ Train a word2vec model
 python3 train.py --dataset-path DATASET_PATH [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH]
 ```
 
-# How to use these trained embeddings in your project
+## How to use these trained embeddings in your project
 
 You can extract the embedding layer and use bert tokenizer to use these trained embeddings in any of your projects. Each token from the tokenizer is mapped to a vector of size embedding_dim in the embeddings weights. The token directly corresponds to its index.
 ```python3
@@ -56,7 +56,7 @@ embeddings = torch.load('word2vec_model.pt')['model_state_dict']['embedding.weig
 tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
 ```
 
-# About my implementation
+## About my implementation
 
 For the skip-gram model, I decided to follow the negative sampling technique from the paper that results in faster training and more robust embeddings. The speed gains mainly comes from
 avoiding the softmax layer and classification task and switching to a simple logistic regression task:
