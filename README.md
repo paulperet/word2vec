@@ -55,6 +55,10 @@ from transformers import AutoTokenizer
 
 embeddings = torch.load('word2vec_model.pt')['model_state_dict']['embedding.weight']
 tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+
+word = "king"
+word_id = tokenizer.vocab[word]
+word_embedding = embeddings[word_id]
 ```
 
 ## About my implementation
