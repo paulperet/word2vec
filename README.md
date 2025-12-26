@@ -1,6 +1,6 @@
 # Word2Vec using Skip-Gram and Noise Contrastive Estimation
 
-This program can be used to train a word embeddings from any text file (with BERT tokenizer).
+This program can be used to train word embeddings from any text file (with BERT tokenizer).
 
 This is an implementation of the paper : Mikolov, Tomas & Sutskever, Ilya & Chen, Kai & Corrado, G.s & Dean, Jeffrey. (2013). 
 Distributed Representations of Words and Phrases and their Compositionality. Advances in Neural Information Processing Systems. 26. 
