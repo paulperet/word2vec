@@ -55,3 +55,19 @@ from transformers import AutoTokenizer
 embeddings = torch.load('word2vec_model.pt')['model_state_dict']['embedding.weight']
 tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
 ```
+
+# About my implementation
+
+For the skip-gram model, I decided to follow the negative sampling technique from the paper that results in faster training and more robust embeddings. The speed gains mainly comes from
+avoiding the softmax layer and classification task and switching to a simple logistic regression task:
+
+$$\log \sigma({v'_{w_O}}^\top v_{w_I}) + \sum_{i=1}^{k} \mathbb{E}_{w_i \sim P_n(w)} \left[ \log \sigma(-{v'_{w_i}}^\top v_{w_I}) \right]$$
+
+The resulting objective allows our model to bring similar words closer while moving away random sampled words. We use two embeddings matrices to train this model: one for our center words and another one for context words (positive examples) and negative examples.
+
+Again drawing from the paper I choose to sample my negative examples from this distribution, as it was outperforming any other:
+
+$$P_n(w_i) = \frac{U(w_i)^{3/4}}{\sum_{j=1}^{n} U(w_j)^{3/4}}$$
+
+For the embeddings initialization I choose to use a uniform distribution with a very low variance. Other have shown that this is the most important factor
+for intialization as it avoids exploding gradients.
