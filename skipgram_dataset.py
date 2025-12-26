@@ -7,7 +7,6 @@ from collections import defaultdict
 from tqdm import tqdm
 import os
 
-model=AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
 tokenizer=AutoTokenizer.from_pretrained("bert-base-uncased")
 
 def encode(data):
