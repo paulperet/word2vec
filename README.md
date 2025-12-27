@@ -116,8 +116,10 @@ On the wordsim353, my model achieved 41.9% accuracy with a high confidence (p-va
 
 Here are the most similar words computed in the evaluation script:
 
--> king: ['king', 'bewildered', 'brightened', 'outstretched', 'celine']
--> queen: ['queen', 'westfield', 'elizabeth', 'chuckles', 'peering']
--> apple: ['apple', 'macintosh', 'mcintosh', 'stubble', 'hardware']
--> orange: ['orange', 'sipped', 'lettering', 'archway', 'leafs']
--> computer: ['computer', 'computers', 'apps', 'computing', 'smartphone']
+| Word | Most Similar Words |
+| :--- | :--- |
+| **king** | king, bewildered, brightened, outstretched, celine |
+| **queen** | queen, westfield, elizabeth, chuckles, peering |
+| **apple** | apple, macintosh, mcintosh, stubble, hardware |
+| **orange** | orange, sipped, lettering, archway, leafs |
+| **computer** | computer, computers, apps, computing, smartphone |
