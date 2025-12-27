@@ -96,7 +96,7 @@ Again drawing from the paper I choose to sample my negative examples from this d
 
 $$P_n(w_i) = \frac{U(w_i)^{3/4}}{\sum_{j=1}^{n} U(w_j)^{3/4}}$$
 
-For the embeddings initialization I choose to use a uniform distribution with a very low variance. Other have shown that low variance is the most important factor
+For the embeddings initialization I choose to use a uniform distribution with a very low variance. Others have shown that low variance is the most important factor
 for intialization as it avoids exploding gradients.
 
 The dataset mainly consists of two tensors of type int16 with size MAX_TRAINING_EXAMPLES, and are loaded on the best found device: cpu, mps or cuda. Be careful as they should be able to fit in memory (As a guide: 100m examples will result in 400 MB of memory, 1B will result in 4 GB of memory used).
