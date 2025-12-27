@@ -1,6 +1,6 @@
 # Word2Vec using Skip-Gram and Noise Contrastive Estimation
 
-This program can be used to train word embeddings from any text file (with BERT tokenizer).
+This program can be used to train word embeddings from any text file (with BERT tokenizer). Note that it is not the most optimized implementation, I recommend to use other librairies like Gensim for production.
 
 This is an implementation of the paper : 
 
@@ -106,20 +106,40 @@ Where $P_n(w_i)$ is the probability of word $w_i$ being selected as a negative s
 For the embeddings initialization I choose to use a uniform distribution with a very low variance. Others have shown that low variance is the most important factor
 for intialization as it avoids exploding gradients.
 
+### Dataset 
 The dataset mainly consists of two tensors of type int16 with size MAX_TRAINING_EXAMPLES, and are loaded on the best found device: cpu, mps or cuda. Be careful as they should be able to fit in memory (As a guide: 100m examples will result in 400 MB of memory, 1B will result in 4 GB of memory used).
+
+### Learning rate scheduler
+After running mutiple tests, I have found that using OneCycleLR performs better in finding similar words (better semantic understanding) while lowering wordsim353 score after running for a single epoch. 
 
 ## Results
 
-To test the program I used the text8 dataset and capped the number of training examples at 100m. I kept the default settings for creating the dataset and training the model. I ran the training for one single epoch. It took around 40 minutes on a T4 GPU.
+To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia. Except for the MAX_TRAINING_EXAMPLES, EPOCHS and WINDOW, I kept the default settings for creating the dataset and training the model.
 
-On the wordsim353, my model achieved 41.9% accuracy with a high confidence (p-value of 1.65e-16)
+### Training with 100M examples (window=5) for a single epoch
+Training time: ≃ 40 minutes on a T4 GPU.
+
+On the wordsim353, my model achieved 36.3% accuracy with a high confidence (p-value of 1.73e-12).
 
 Here are the most similar words computed in the evaluation script:
 
-| Word | Most Similar Words |
+| Category | Associated Words |
 | :--- | :--- |
-| **king** | king, bewildered, brightened, outstretched, celine |
-| **queen** | queen, westfield, elizabeth, chuckles, peering |
-| **apple** | apple, macintosh, mcintosh, stubble, hardware |
-| **orange** | orange, sipped, lettering, archway, leafs |
-| **computer** | computer, computers, apps, computing, smartphone |
+| **king** | king, crowned, kings, aquitaine, conqueror |
+| **queen** | queen, elizabeth, highness, crown, gloucester |
+| **apple** | apple, macintosh, microsoft, ibm, commodore |
+| **orange** | orange, grey, green, jackets, white |
+| **computer** | computer, computers, computing, hardware, machines |
+
+### Training with 377M examples (window=10) for a single epoch
+Traning time = 5h 35 minutes on a T4 GPU.
+
+On the wordsim353, my model achieved 47,1% accuracy with a high confidence (p-value of 5.68e-21).
+
+| Category | Associated Top-5 Similarities |
+| :--- | :--- |
+| **king** | king, kings, son, ##enay, joao |
+| **queen** | queen, elizabeth, highness, princess, lady |
+| **apple** | apple, macintosh, microsoft, pcs, hardware |
+| **orange** | orange, green, yellow, greyish, whitish |
+| **computer** | computer, computers, computing, hardware, machines |
