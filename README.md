@@ -118,7 +118,8 @@ To test the program I used the text8 dataset which is a text file containing the
 
 ### Training with 100M examples (window=5) for a single epoch
 Training time: ≃ 40 minutes on a T4 GPU.
-On the wordsim353, my model achieved 36.3% accuracy with a high confidence (p-value of 1.73e-12)
+
+On the wordsim353, my model achieved 36.3% accuracy with a high confidence (p-value of 1.73e-12).
 
 Here are the most similar words computed in the evaluation script:
 
@@ -128,4 +129,17 @@ Here are the most similar words computed in the evaluation script:
 | **queen** | queen, elizabeth, highness, crown, gloucester |
 | **apple** | apple, macintosh, microsoft, ibm, commodore |
 | **orange** | orange, grey, green, jackets, white |
+| **computer** | computer, computers, computing, hardware, machines |
+
+### Training with 1B examples (window=10) for a single epoch
+Traning time = 5h 35 minutes
+
+On the wordsim353, my model achieved 47,1% accuracy with a high confidence (p-value of 5.68e-21).
+
+| Category | Associated Top-5 Similarities |
+| :--- | :--- |
+| **king** | king, kings, son, ##enay, joao |
+| **queen** | queen, elizabeth, highness, princess, lady |
+| **apple** | apple, macintosh, microsoft, pcs, hardware |
+| **orange** | orange, green, yellow, greyish, whitish |
 | **computer** | computer, computers, computing, hardware, machines |
