@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument(
         "--window",
         type=int,
-        default=3,
+        default=5,
         help="Window size for context words.",
     )
 

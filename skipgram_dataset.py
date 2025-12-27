@@ -78,7 +78,7 @@ class SkipGram(Dataset):
                     continue
                 break
         
-        self.distribution = {k: v**(3/4) / sum([x**(3/4) for x in self.distribution.values()]) for k, v in self.distribution.items()} 
+        self.distribution = {k: 1 - (v**(3/4) / sum([x**(3/4) for x in self.distribution.values()]))**0.5 for k, v in self.distribution.items()} 
         self.distribution = torch.tensor([self.distribution[key] for key in sorted(self.distribution.keys())])
         self.distribution = self.distribution.to(self.device)
 
