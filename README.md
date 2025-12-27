@@ -132,9 +132,9 @@ Here are the most similar words computed in the evaluation script:
 | **computer** | computer, computers, computing, hardware, machines |
 
 ### Training with 377M examples (window=10) for a single epoch
-Traning time = 5h 35 minutes on a T4 GPU.
+Training time = 5h 35 minutes on a T4 GPU.
 
-On the wordsim353, my model achieved 47,1% accuracy with a high confidence (p-value of 5.68e-21).
+On the wordsim353, my model achieved 47.1% accuracy with a high confidence (p-value of 5.68e-21).
 
 | Category | Associated Top-5 Similarities |
 | :--- | :--- |
