@@ -43,10 +43,20 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
         word2vec.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
     train_loss_list = []
 
     best_val_loss = float('inf')
+
+    # Learning rate scheduler
+    total_steps = epochs * len(train_loader)
+
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer, 
+        max_lr=1e-3, 
+        total_steps=total_steps
+    )
 
     for epoch in range(epochs):  # loop over the dataset multiple times
 
@@ -79,9 +89,11 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
                     negative_examples =  word2vec.context_embedding(negative_examples)
                     loss = criterion(outputs, negative_examples, labels)
                 scaler.scale(loss).backward()
-                #torch.nn.utils.clip_grad_norm_(word2vec.parameters(), 1.0)
                 scaler.step(optimizer)
                 scaler.update()
+
+                # Step the scheduler
+                scheduler.step()
 
                 # print statistics
                 running_train_loss += loss.item()
@@ -103,7 +115,8 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
     torch.save({
             'model_state_dict': word2vec.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'scaler_state_dict': scaler.state_dict()
+            'scaler_state_dict': scaler.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
             }, output_path)
 
 def parse_args():
