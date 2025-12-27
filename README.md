@@ -68,6 +68,8 @@ This will give you an idea of the quality of your embeddings on the wordsim353 d
 
 Finkelstein, Lev, et al. "Placing search in context: The concept revisited." Proceedings of the 10th international conference on World Wide Web. ACM, 2001.
 
+The evaluation will also display the top 5 closest words from sample words.
+
 ## How to use these trained embeddings in your project
 
 You can extract the embedding layer and use bert tokenizer to use these trained embeddings in any of your projects. Each token from the tokenizer is mapped to a vector of size embedding_dim in the embeddings weights. The token directly corresponds to its index.
@@ -105,3 +107,19 @@ For the embeddings initialization I choose to use a uniform distribution with a 
 for intialization as it avoids exploding gradients.
 
 The dataset mainly consists of two tensors of type int16 with size MAX_TRAINING_EXAMPLES, and are loaded on the best found device: cpu, mps or cuda. Be careful as they should be able to fit in memory (As a guide: 100m examples will result in 400 MB of memory, 1B will result in 4 GB of memory used).
+
+## Results
+
+To test the program I used the text8 dataset and capped the number of training examples at 100m. I kept the default settings for creating the dataset and training the model. I ran the training for one single epoch. It took around 40 minutes on a T4 GPU.
+
+On the wordsim353, my model achieved 41.9% accuracy with a high confidence (p-value of 1.65e-16)
+
+Here are the most similar words computed in the evaluation script:
+
+| Word | Most Similar Words |
+| :--- | :--- |
+| **king** | king, bewildered, brightened, outstretched, celine |
+| **queen** | queen, westfield, elizabeth, chuckles, peering |
+| **apple** | apple, macintosh, mcintosh, stubble, hardware |
+| **orange** | orange, sipped, lettering, archway, leafs |
+| **computer** | computer, computers, apps, computing, smartphone |
