@@ -1,6 +1,8 @@
 # Word2Vec using Skip-Gram and Noise Contrastive Estimation
 
-This program can be used to train word embeddings from any text file (with BERT tokenizer). Note that it is not the most optimized implementation, I recommend to use other librairies like Gensim for production. My implementation aims for clarity and readability rather than for pure speed and efficiency.
+This program can be used to train word embeddings from any text file (with BERT tokenizer). 
+> [!CAUTION]
+> Note that this is not the most optimized implementation, I recommend to use other librairies like Gensim for production. My implementation aims for clarity and readability rather than for pure speed and efficiency.
 
 This is an implementation of the paper : 
 
