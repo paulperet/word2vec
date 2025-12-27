@@ -1,6 +1,6 @@
 # Word2Vec using Skip-Gram and Noise Contrastive Estimation
 
-This program can be used to train word embeddings from any text file (with BERT tokenizer).
+This program can be used to train word embeddings from any text file (with BERT tokenizer). Note that it is not the most optimized implementation, I recommend to use other librairies like Gensim for production.
 
 This is an implementation of the paper : 
 
@@ -131,7 +131,7 @@ Here are the most similar words computed in the evaluation script:
 | **orange** | orange, grey, green, jackets, white |
 | **computer** | computer, computers, computing, hardware, machines |
 
-### Training with 1B examples (window=10) for a single epoch
+### Training with 377M examples (window=10) for a single epoch
 Traning time = 5h 35 minutes on a T4 GPU.
 
 On the wordsim353, my model achieved 47,1% accuracy with a high confidence (p-value of 5.68e-21).
