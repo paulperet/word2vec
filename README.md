@@ -114,9 +114,9 @@ After running mutiple tests, I have found that using OneCycleLR performs better 
 
 ## Results
 
-To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia. I kept the default settings for creating the dataset and training the model.
+To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia. Except for the MAX_TRAINING_EXAMPLES, EPOCHS and WINDOW, I kept the default settings for creating the dataset and training the model.
 
-### Training with a 100M Dataset for a single epoch
+### Training with 100M examples (window=5) for a single epoch
 Training time: ≃ 40 minutes on a T4 GPU.
 On the wordsim353, my model achieved 36.3% accuracy with a high confidence (p-value of 1.73e-12)
 
