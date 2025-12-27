@@ -85,7 +85,7 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
                 # forward + backward + optimize
                 with torch.autocast(device_type=device, dtype=torch.float16, enabled=True):
                     outputs = word2vec.embedding(inputs)
-                    negative_examples = dataset.negative_samples[torch.randint(len(dataset.negative_samples), size=(len(inputs),))].to(device)
+                    negative_examples = dataset.get_negative_examples(len(inputs)).to(device)
                     negative_examples =  word2vec.context_embedding(negative_examples)
                     loss = criterion(outputs, negative_examples, labels)
                 scaler.scale(loss).backward()

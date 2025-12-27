@@ -40,10 +40,9 @@ def stream_sentences_mmap_capped(filepath, max_chunk_size=1024*1024):
                     start = end
 
 class SkipGram(Dataset):
-    def __init__(self, device='cpu', negative_batch_size=10000) -> None:
+    def __init__(self, device='cpu') -> None:
         "Instantiate the dataset object"
         self.device = device
-        self.negative_batch_size = negative_batch_size
 
     def create(self, file_path, window=3, max_training_examples=1e7, k=20):
         "Build a dataset using skip-gram"
@@ -88,12 +87,6 @@ class SkipGram(Dataset):
 
         self.length = len(self.target_words)
 
-        self.negative_samples = torch.multinomial(
-            self.distribution.expand(self.negative_batch_size, -1), 
-            self.k, 
-            replacement=True
-        )
-
     def save(self, filepath: str) -> None:
         "Saves the dataset to a file"
         torch.save({
@@ -101,9 +94,7 @@ class SkipGram(Dataset):
             'context_words': self.context_words,
             'distribution': self.distribution,
             'k': self.k,
-            'length': self.length,
-            'negative_batch_size': self.negative_batch_size,
-            'negative_samples': self.negative_samples
+            'length': self.length
         }, filepath)
     
     def load(self, filepath: str) -> None:
@@ -112,17 +103,15 @@ class SkipGram(Dataset):
         self.target_words = saved_dict['target_words'].to(self.device)
         self.context_words = saved_dict['context_words'].to(self.device)
         self.distribution = saved_dict['distribution'].to(self.device)
+
+
+
         self.k = saved_dict['k']
         self.length = saved_dict['length']
-        self.negative_batch_size = saved_dict['negative_batch_size']
-        self.negative_samples = saved_dict['negative_samples'].to(self.device)
 
-    def regenerate_negative_samples(self, batch_size) -> torch.Tensor:
-        self.negative_samples = torch.multinomial(
-            self.distribution.expand(batch_size, -1), 
-            self.k, 
-            replacement=True
-        )
+    def get_negative_examples(self, batch_size) -> torch.Tensor:
+        negative_examples = self.distribution.expand(batch_size, -1).multinomial(self.k)
+        return negative_examples
     
     def __len__(self) -> int:
         "Returns the total number of samples."
