@@ -85,6 +85,7 @@ word_embedding = embeddings[word_id]
 
 ## About my implementation
 
+### NCE Loss
 For the skip-gram model, I decided to follow the negative sampling technique from the paper that results in faster training and more robust embeddings. The speed gains mainly comes from
 avoiding the softmax layer and classification task and switching to a simple logistic regression task:
 
@@ -92,10 +93,14 @@ $$\log \sigma({v'_{w_O}}^\top v_{w_I}) + \sum_{i=1}^{k} \mathbb{E}_{w_i \sim P_n
 
 The resulting objective allows our model to bring similar words closer while moving away random sampled words. We use two embeddings matrices to train this model: one for our center words and another one for context words (positive examples) and negative examples.
 
-Again drawing from the paper I choose to sample my negative examples from this distribution, as it was outperforming any other:
+### Noise Distribution
+Again drawing from the paper I choose to sample my negative examples from this noise distribution, as it was outperforming any other:
 
 $$P_n(w_i) = \frac{U(w_i)^{3/4}}{\sum_{j=1}^{n} U(w_j)^{3/4}}$$
 
+Where $P_n(w_i)$ is the probability of word $w_i$ being selected as a negative sample, $U(w)$ is the unigram distribution (the raw frequency of the word in the corpus), $3/4$ is the empirically best power factor found in the paper and $\sum U(w_j)^{3/4}$ is the normalization factor (often denoted as $Z$) that ensures all probabilities sum to 1.
+
+### Embedding initialization
 For the embeddings initialization I choose to use a uniform distribution with a very low variance. Others have shown that low variance is the most important factor
 for intialization as it avoids exploding gradients.
 
