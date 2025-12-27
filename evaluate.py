@@ -6,6 +6,7 @@ from word2vec_model import Word2Vec
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from scipy.stats import spearmanr
+from sklearn.neighbors import KDTree
 
 tokenizer=AutoTokenizer.from_pretrained("bert-base-uncased")
 
@@ -45,7 +46,18 @@ def evaluate(checkpoint_path: str) -> None:
         axis=1
     )
 
+    print("\nEvaluation Results:")
+    print("\n-> Spearman correlation between Word2Vec embeddings and human scores (WordSim353):")
     print(spearmanr(wordsim353['Cosine Similarity'], wordsim353['Human (Mean)']))
+
+    embeddings = torch.load(checkpoint_path, map_location=torch.device('cpu'))['model_state_dict']['embedding.weight']
+    embeddings = embeddings.numpy()
+    tree = KDTree(embeddings, leaf_size=2)
+    print("\nSample of words and their top-5 similarities:")
+    sample_words = ['king', 'queen', 'apple', 'orange', 'computer']
+    for word in sample_words:
+        results = tree.query(embeddings[tokenizer.vocab[word]].reshape(1, -1), k=5)[1]
+        print(f'-> {word}: {[tokenizer.convert_ids_to_tokens(int(idx)) for idx in results[0]]}')
 
 def parse_args():
     parser = argparse.ArgumentParser()
