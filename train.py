@@ -4,7 +4,6 @@ from word2vec_model import Word2Vec
 from torch.utils.data import DataLoader
 import torch
 from torch.optim import AdamW
-from transformers import AutoTokenizer
 from tqdm import tqdm
 import argparse
 from pathlib import Path
@@ -22,12 +21,12 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
         device = "cuda"
     elif torch.backends.mps.is_available():
         device = "mps"
-    tokenizer=AutoTokenizer.from_pretrained("bert-base-uncased")
 
     dataset = SkipGram(device='cpu')
     dataset.load(path)
+    tokenizer=dataset.tokenizer
 
-    voc_size = len(tokenizer.vocab.keys())
+    voc_size = len(tokenizer.get_vocab().keys())
     word2vec = Word2Vec(voc_size=voc_size, embedding_dim=embedding_dim).to(device)
 
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -124,7 +123,7 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
             'model_state_dict': word2vec.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'scaler_state_dict': scaler.state_dict(),
-            'scheduler_state_dict': scheduler.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict()
             }, output_path)
 
 def parse_args():

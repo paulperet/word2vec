@@ -2,15 +2,16 @@ import mmap
 from torch.utils.data import Dataset
 import torch
 from typing import Tuple
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoTokenizer
+from tokenizers import Tokenizer
+from tokenizers.models import WordLevel
 from collections import defaultdict
 from tqdm import tqdm
 import os
+from tokenizers.pre_tokenizers import Whitespace
+from tokenizers.trainers import WordLevelTrainer
 
-tokenizer=AutoTokenizer.from_pretrained("bert-base-uncased")
-
-def encode(data):
-    return tokenizer(data["text"], truncation=False, padding=False)
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 # Stream sentences using memory-mapped file with capped chunk size
 
@@ -46,18 +47,24 @@ class SkipGram(Dataset):
 
     def create(self, file_path, window=3, max_training_examples=1e7, k=20):
         "Build a dataset using skip-gram"
-        self.distribution = defaultdict(int)
         self.k = k
-        self.target_words = torch.ones(int(max_training_examples), dtype=torch.int16) * -1
-        self.context_words = torch.ones(int(max_training_examples), dtype=torch.int16) * -1
+        self.target_words = torch.ones(int(max_training_examples), dtype=torch.int32) * -1
+        self.context_words = torch.ones(int(max_training_examples), dtype=torch.int32) * -1
+
+        tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
+        tokenizer.pre_tokenizer = Whitespace()
+        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], vocab_size=100000)
+        tokenizer.train(files=[os.fspath(file_path)], trainer=trainer)
+
+        self.tokenizer = tokenizer
+        self.distribution = torch.zeros(len(self.tokenizer.get_vocab().keys()), dtype=torch.int64)
 
         # Dataset creation
         dataset_index=0
         with tqdm(total=os.path.getsize(file_path), desc='Creating dataset') as pbar:
             for sentence in stream_sentences_mmap_capped(file_path):
                 pbar.update(len(sentence.encode('utf-8')))
-                words = tokenizer.tokenize(sentence, truncation=False)
-                words = tokenizer.convert_tokens_to_ids(words)
+                words = self.tokenizer.encode(sentence).ids
                 for index, token in enumerate(words):
                     self.distribution[token] += 1
 
@@ -78,9 +85,7 @@ class SkipGram(Dataset):
                     continue
                 break
         
-        self.distribution = {k: 1 - (v**(3/4) / sum([x**(3/4) for x in self.distribution.values()]))**0.5 for k, v in self.distribution.items()} 
-        self.distribution = torch.tensor([self.distribution[key] for key in sorted(self.distribution.keys())])
-        self.distribution = self.distribution.to(self.device)
+        self.distribution = 1 - (self.distribution**0.75 / (self.distribution**0.75).sum())**0.5
 
         self.target_words = self.target_words[self.target_words != -1].to(self.device)
         self.context_words = self.context_words[self.context_words != -1].to(self.device)
@@ -96,6 +101,7 @@ class SkipGram(Dataset):
             'k': self.k,
             'length': self.length
         }, filepath)
+        self.tokenizer.save(os.getcwd() + '/tokenizer.json')
     
     def load(self, filepath: str) -> None:
         "Loads the dataset from a file"
@@ -103,11 +109,9 @@ class SkipGram(Dataset):
         self.target_words = saved_dict['target_words'].to(self.device)
         self.context_words = saved_dict['context_words'].to(self.device)
         self.distribution = saved_dict['distribution'].to(self.device)
-
-
-
         self.k = saved_dict['k']
         self.length = saved_dict['length']
+        self.tokenizer = Tokenizer.from_file(os.getcwd() + '/tokenizer.json')
 
     def get_negative_examples(self, batch_size) -> torch.Tensor:
         negative_examples = torch.multinomial(self.distribution, batch_size * self.k, replacement=True).view(batch_size, self.k)
