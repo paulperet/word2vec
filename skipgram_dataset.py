@@ -53,7 +53,7 @@ class SkipGram(Dataset):
 
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
         tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], vocab_size=100000)
+        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], vocab_size=100000, min_frequency=5)
         tokenizer.train(files=[os.fspath(file_path)], trainer=trainer)
 
         self.tokenizer = tokenizer
