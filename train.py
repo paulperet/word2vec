@@ -8,14 +8,15 @@ from transformers import AutoTokenizer
 from tqdm import tqdm
 import argparse
 from pathlib import Path
+import time
 
 
 # Noise Contrastive Estimation Loss
 def nce_loss(positive_examples, negative_examples, labels):
-        nce_loss_batch = -(torch.nn.functional.logsigmoid(positive_examples.unsqueeze(-1).transpose(-2,-1) @ labels.unsqueeze(-1)).squeeze(-2,-1) + torch.sum(torch.nn.functional.logsigmoid(-positive_examples.unsqueeze(-1).transpose(-2,-1) @ negative_examples.transpose(-2,-1)).squeeze(1), dim=1))
-        return torch.mean(nce_loss_batch, dim=0)
+    nce_loss_batch = -(torch.nn.functional.logsigmoid(torch.bmm(positive_examples.unsqueeze(-1).transpose(-2,-1), labels.unsqueeze(-1))).squeeze(-2,-1) + torch.sum(torch.nn.functional.logsigmoid(-torch.bmm(positive_examples.unsqueeze(-1).transpose(-2,-1), negative_examples.transpose(-2,-1))).squeeze(1), dim=1))
+    return torch.mean(nce_loss_batch, dim=0)
 
-def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=1024, checkpoint=None, learning_rate=1e-3) -> None:
+def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=10000, checkpoint=None, learning_rate=1e-3, num_workers=4) -> None:
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda"
@@ -23,18 +24,21 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
         device = "mps"
     tokenizer=AutoTokenizer.from_pretrained("bert-base-uncased")
 
-    dataset = SkipGram(device=device)
+    dataset = SkipGram(device='cpu')
     dataset.load(path)
-
-    word2vec = Word2Vec(voc_size=len(dataset.distribution), embedding_dim=embedding_dim).to(device)
 
     voc_size = len(tokenizer.vocab.keys())
     word2vec = Word2Vec(voc_size=voc_size, embedding_dim=embedding_dim).to(device)
 
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     
     criterion = nce_loss
-    scaler = torch.amp.GradScaler(enabled=True)
+    if device == "cuda":
+        use_amp = True
+    else:
+        use_amp = False
+
+    scaler = torch.amp.GradScaler(enabled=use_amp)
     optimizer = AdamW(word2vec.parameters(), lr=learning_rate)
 
     if checkpoint is not None:
@@ -50,11 +54,12 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
     best_val_loss = float('inf')
 
     # Learning rate scheduler
-    total_steps = epochs * len(train_loader)
+    gradient_accumulation_steps = len(train_loader) // 500 if len(train_loader) // 500 > 0 else 1
+    total_steps = len(train_loader) // gradient_accumulation_steps * epochs
 
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
-        max_lr=1e-3, 
+        max_lr=1e-2, 
         total_steps=total_steps
     )
 
@@ -74,26 +79,29 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
 
                 inputs = inputs.int()
                 labels = labels.int()
-                
+
                 #inputs = nn.functional.one_hot(torch.tensor(inputs), num_classes=len(train.mapping.keys())).float().to(device) #Try this
 
                 labels = word2vec.context_embedding(labels.to(device)) # We want to compare our embedding to the target or negative example
-                
-                # zero the parameter gradients
-                optimizer.zero_grad()
 
                 # forward + backward + optimize
-                with torch.autocast(device_type=device, dtype=torch.float16, enabled=True):
+                with torch.autocast(device_type=device, dtype=torch.float16, enabled=use_amp):
                     outputs = word2vec.embedding(inputs)
                     negative_examples = dataset.get_negative_examples(len(inputs)).to(device)
                     negative_examples =  word2vec.context_embedding(negative_examples)
                     loss = criterion(outputs, negative_examples, labels)
                 scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
 
-                # Step the scheduler
-                scheduler.step()
+                # Gradient accumulation
+                if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == len(train_loader):
+                    scaler.step(optimizer)
+                    scaler.update()
+
+                    # Step the scheduler
+                    scheduler.step()
+
+                    # zero the parameter gradients
+                    optimizer.zero_grad()
 
                 # print statistics
                 running_train_loss += loss.item()
@@ -160,8 +168,8 @@ def parse_args():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=1024,
-        help="Batch size for training. (default: 1024)",
+        default=10000,
+        help="Batch size for training. (default: 10000)",
     )
 
     parser.add_argument(
@@ -169,6 +177,13 @@ def parse_args():
         type=Path,
         default=None,
         help="Path to save the checkpoint. (default: None)",
+    )
+
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=4,
+        help="Number of workers for data loading. (default: 4)",
     )
 
     args = parser.parse_args()
@@ -184,5 +199,6 @@ if __name__ == "__main__":
         embedding_dim=args.embedding_dim,
         batch_size=args.batch_size,
         checkpoint=args.checkpoint_path,
-        learning_rate=args.learning_rate
+        learning_rate=args.learning_rate,
+        num_workers=args.num_workers
     )

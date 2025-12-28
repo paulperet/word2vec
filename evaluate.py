@@ -22,7 +22,7 @@ def get_vector_safe(word, model):
         word = tokenizer.vocab[word]
         return model.embedding(torch.tensor(word).to(device)).to('cpu')
     else:
-        return torch.zeros(300).to('cpu')
+        return torch.zeros(model.embedding.embedding_dim).to('cpu')
 
 def evaluate(checkpoint_path: str) -> None:
 

@@ -110,7 +110,7 @@ class SkipGram(Dataset):
         self.length = saved_dict['length']
 
     def get_negative_examples(self, batch_size) -> torch.Tensor:
-        negative_examples = self.distribution.expand(batch_size, -1).multinomial(self.k)
+        negative_examples = torch.multinomial(self.distribution, batch_size * self.k, replacement=True).view(batch_size, self.k)
         return negative_examples
     
     def __len__(self) -> int:
