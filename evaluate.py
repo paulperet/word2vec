@@ -18,11 +18,8 @@ elif torch.backends.mps.is_available():
 
 
 def get_vector_safe(word, model):
-    if word in tokenizer.vocab.keys():
-        word = tokenizer.vocab[word]
-        return model.embedding(torch.tensor(word).to(device)).to('cpu')
-    else:
-        return torch.zeros(model.embedding.embedding_dim).to('cpu')
+    tokens = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(word))
+    return torch.mean(model.embedding(torch.tensor(tokens).to(device)), dim=0).to(device).to('cpu')
 
 def evaluate(checkpoint_path: str) -> None:
 
