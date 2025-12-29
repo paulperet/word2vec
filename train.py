@@ -96,7 +96,9 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
 
     number_of_batches = os.path.getsize(path) // chunk_size
     gradient_accumulation_steps = number_of_batches // 500 if number_of_batches // 500 > 0 else 1
-    total_steps = (number_of_batches // gradient_accumulation_steps * epochs) + 1
+
+    steps_per_epoch = (number_of_batches + gradient_accumulation_steps - 1) // gradient_accumulation_steps
+    total_steps = steps_per_epoch * epochs
 
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, 
