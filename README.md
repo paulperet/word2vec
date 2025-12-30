@@ -1,6 +1,6 @@
 # Word2Vec using Skip-Gram and Noise Contrastive Estimation
 
-This program can be used to train word embeddings from any text file (with BERT tokenizer). 
+This program can be used to train word embeddings from any text file. 
 > [!CAUTION]
 > Note that this is not the most optimized implementation, I recommend to use other librairies like Gensim for production. My implementation aims for clarity and readability rather than for pure speed and efficiency.
 
@@ -40,16 +40,6 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Create a dataset
-```bash
-python3 create-dataset.py --source-file SOURCE_FILE [--target-file TARGET_FILE] [--window WINDOW] [--max-training-examples MAX_TRAINING_EXAMPLES] [--negative-examples NEGATIVE_EXAMPLES]
-```
-- source file: your input text (recommended: large text file > 140mb)
-- target file: name the exported dataset
-- window: this is the range of context words that will be taken for each word (recommended: 5 for good syntaxic understanding, 10 for good semantic understanding)
-- max training examples: maximum length of the dataset (recommended: at least 100m but you can go up to 1B and more for good quality embeddings)
-- negative examples: number of randomly sampled examples (recommended: 5 for large datasets 20 for small datasets)
-
 ### Train a word2vec model
 ```bash
 python3 train.py --dataset-path DATASET_PATH [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH]
@@ -77,10 +67,10 @@ The evaluation will also display the top 5 closest words from sample words.
 You can extract the embedding layer and use bert tokenizer to use these trained embeddings in any of your projects. Each token from the tokenizer is mapped to a vector of size embedding_dim in the embeddings weights. The token directly corresponds to its index.
 ```python3
 import torch
-from transformers import AutoTokenizer
+from tokenizers import Tokenizer
 
 embeddings = torch.load('word2vec_model.pt')['model_state_dict']['embedding.weight']
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+tokenizer = Tokenizer.from_file(os.getcwd() + '/tokenizer.json')
 
 word = "king"
 word_id = tokenizer.vocab[word]
@@ -118,30 +108,17 @@ After running mutiple tests, I have found that using OneCycleLR performs better 
 
 To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia. Except for the MAX_TRAINING_EXAMPLES, EPOCHS and WINDOW, I kept the default settings for creating the dataset and training the model.
 
-### Training with 100M examples (window=5) for a single epoch
-Training time: ≃ 40 minutes on a T4 GPU.
+### Training for five epochs
+Training time: ≃ 56 minutes on a Macbook M1.
 
-On the wordsim353, my model achieved 36.3% accuracy with a high confidence (p-value of 1.73e-12).
+On the wordsim353, my model achieved 53.6% accuracy with a high confidence (p-value of 9e-28).
 
 Here are the most similar words computed in the evaluation script:
 
-| Category | Associated Words |
+| Word | Top 5 Similarities |
 | :--- | :--- |
-| **king** | king, crowned, kings, aquitaine, conqueror |
-| **queen** | queen, elizabeth, highness, crown, gloucester |
-| **apple** | apple, macintosh, microsoft, ibm, commodore |
-| **orange** | orange, grey, green, jackets, white |
-| **computer** | computer, computers, computing, hardware, machines |
-
-### Training with 377M examples (window=10) for a single epoch
-Training time = 5h 35 minutes on a T4 GPU.
-
-On the wordsim353, my model achieved 47.1% accuracy with a high confidence (p-value of 5.68e-21).
-
-| Category | Associated Top-5 Similarities |
-| :--- | :--- |
-| **king** | king, kings, son, ##enay, joao |
-| **queen** | queen, elizabeth, highness, princess, lady |
-| **apple** | apple, macintosh, microsoft, pcs, hardware |
-| **orange** | orange, green, yellow, greyish, whitish |
-| **computer** | computer, computers, computing, hardware, machines |
+| **king** | king, iii, prince, iv, son |
+| **queen** | queen, elizabeth, prince, lady, king |
+| **apple** | apple, macintosh, imac, amiga, ibm |
+| **orange** | orange, white, black, brown, yellow |
+| **computer** | computer, computing, computers, apple, hardware |
