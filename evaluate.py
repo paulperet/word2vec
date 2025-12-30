@@ -7,8 +7,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from scipy.stats import spearmanr
 from sklearn.neighbors import KDTree
-
-tokenizer=AutoTokenizer.from_pretrained("bert-base-uncased")
+import os
+from tokenizers import Tokenizer
 
 device = "cpu"
 if torch.cuda.is_available():
@@ -17,9 +17,12 @@ elif torch.backends.mps.is_available():
     device = "mps"
 
 
-def get_vector_safe(word, model):
-    tokens = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(word))
-    return torch.mean(model.embedding(torch.tensor(tokens).to(device)), dim=0).to(device).to('cpu')
+def get_vector_safe(word, model, tokenizer):
+    if word in tokenizer.get_vocab().keys():
+        word = tokenizer.get_vocab()[word]
+        return model.embedding(torch.tensor(word).to(device)).to('cpu')
+    else:
+        return torch.zeros(model.embedding.embedding_dim).to('cpu')
 
 def evaluate(checkpoint_path: str) -> None:
 
@@ -27,16 +30,17 @@ def evaluate(checkpoint_path: str) -> None:
 
     # Get embedding dimension from the checkpoint
     embedding_dim = checkpoint['model_state_dict']['embedding.weight'].shape[1]
+    tokenizer = Tokenizer.from_file(os.getcwd() + '/tokenizer.json')
 
-    voc_size = len(tokenizer.vocab.keys())
+    voc_size = len(tokenizer.get_vocab().keys())
     word2vec = Word2Vec(voc_size=voc_size, embedding_dim=embedding_dim).to(device)
 
     word2vec.load_state_dict(checkpoint['model_state_dict'])
 
     wordsim353 = pd.read_csv('./data/wordsim353crowd.csv')
 
-    wordsim353['Word Embedding 1'] = wordsim353['Word 1'].apply(lambda word: get_vector_safe(word, word2vec))
-    wordsim353['Word Embedding 2'] = wordsim353['Word 2'].apply(lambda word: get_vector_safe(word, word2vec))
+    wordsim353['Word Embedding 1'] = wordsim353['Word 1'].apply(lambda word: get_vector_safe(word, word2vec, tokenizer))
+    wordsim353['Word Embedding 2'] = wordsim353['Word 2'].apply(lambda word: get_vector_safe(word, word2vec, tokenizer))
 
     wordsim353['Cosine Similarity'] = wordsim353.apply(
         lambda row: cosine_similarity([row['Word Embedding 1'].detach().numpy()], [row['Word Embedding 2'].detach().numpy()])[0][0],
@@ -53,8 +57,8 @@ def evaluate(checkpoint_path: str) -> None:
     print("\nSample of words and their top-5 similarities:")
     sample_words = ['king', 'queen', 'apple', 'orange', 'computer']
     for word in sample_words:
-        results = tree.query(embeddings[tokenizer.vocab[word]].reshape(1, -1), k=5)[1]
-        print(f'-> {word}: {[tokenizer.convert_ids_to_tokens(int(idx)) for idx in results[0]]}')
+        results = tree.query(embeddings[tokenizer.get_vocab()[word]].reshape(1, -1), k=5)[1]
+        print(f'-> {word}: {[tokenizer.decode([int(idx)]) for idx in results[0]]}')
 
 def parse_args():
     parser = argparse.ArgumentParser()

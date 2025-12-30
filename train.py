@@ -1,36 +1,80 @@
 import torch
-from skipgram_dataset import SkipGram
 from word2vec_model import Word2Vec
-from torch.utils.data import DataLoader
 import torch
 from torch.optim import AdamW
-from transformers import AutoTokenizer
 from tqdm import tqdm
 import argparse
 from pathlib import Path
 import time
+import os
+from tokenizers import Tokenizer
+from tokenizers.models import WordLevel
+from tokenizers.pre_tokenizers import Whitespace
+from tokenizers.trainers import WordLevelTrainer
+from collections import Counter
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Noise Contrastive Estimation Loss
 def nce_loss(positive_examples, negative_examples, labels):
+    "Computes the NCE loss for a batch of positive and negative examples."
     nce_loss_batch = -(torch.nn.functional.logsigmoid(torch.bmm(positive_examples.unsqueeze(-1).transpose(-2,-1), labels.unsqueeze(-1))).squeeze(-2,-1) + torch.sum(torch.nn.functional.logsigmoid(-torch.bmm(positive_examples.unsqueeze(-1).transpose(-2,-1), negative_examples.transpose(-2,-1))).squeeze(1), dim=1))
     return torch.mean(nce_loss_batch, dim=0)
 
-def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=10000, checkpoint=None, learning_rate=1e-3, num_workers=4) -> None:
+def get_sampler(path: str, tokenizer: Tokenizer):
+    "Returns a unigram distribution raised to the 3/4 power for negative sampling."
+    distribution = Counter()
+    with tqdm(total=os.path.getsize(path), desc='Computing distribution for negative sampling') as pbar:
+        with open(path, 'r') as file:
+            while True:
+                chunk = file.read(1024*1024)
+                if not chunk:
+                    break
+                words = chunk.partition(' ')[-1].rpartition(' ')[0] # Trim partial words
+                tokens = tokenizer.encode(words).ids
+                distribution.update(tokens)
+                pbar.update(len(chunk))
+        sampler = torch.ones(len(tokenizer.get_vocab()))
+        for word_id, count in distribution.items():
+            sampler[word_id] = count
+        sampler = sampler**0.75
+        sampler = sampler / sampler.sum()
+        print("Done. Starting training...")
+    return sampler
+
+def get_examples(tokens: torch.Tensor, window: int) -> torch.Tensor:
+    "Returns a 2D tensor of (input, label) pairs for skip-gram model."
+    n_tokens = tokens.size(0)
+
+    # Get center words indices and context words indices
+    center_indices = torch.arange(n_tokens).view(-1, 1)
+    offsets = torch.cat([torch.arange(-window, 0), torch.arange(1, window + 1)])
+
+    # Use broadcasting to get all context indices
+    context_indices = center_indices + offsets
+
+    # Use mask to filter out-of-bounds indices
+    mask = (context_indices >= 0) & (context_indices < n_tokens)
+
+    rows = center_indices.repeat(1, 2 * window)[mask]
+    cols = context_indices[mask]
+
+    examples = torch.stack((tokens[rows], tokens[cols]), dim=1)
+    return examples
+
+def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=10000, checkpoint=None, learning_rate=0.025, num_workers=4, k=5, window=5) -> None:
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda"
-    elif torch.backends.mps.is_available():
-        device = "mps"
-    tokenizer=AutoTokenizer.from_pretrained("bert-base-uncased")
 
-    dataset = SkipGram(device='cpu')
-    dataset.load(path)
+    tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
+    tokenizer.pre_tokenizer = Whitespace()
+    trainer = WordLevelTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], vocab_size=100000, min_frequency=5)
+    tokenizer.train(files=[os.fspath(path)], trainer=trainer)
+    tokenizer.save(os.getcwd() + '/tokenizer.json')
 
-    voc_size = len(tokenizer.vocab.keys())
+    voc_size = len(tokenizer.get_vocab().keys())
     word2vec = Word2Vec(voc_size=voc_size, embedding_dim=embedding_dim).to(device)
-
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     
     criterion = nce_loss
     if device == "cuda":
@@ -47,21 +91,31 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
         word2vec.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
-    train_loss_list = []
-
-    best_val_loss = float('inf')
+    mean_length_word = 6
+    number_of_words = batch_size * mean_length_word
+    chunk_size = number_of_words//(4*window)
 
     # Learning rate scheduler
-    gradient_accumulation_steps = len(train_loader) // 500 if len(train_loader) // 500 > 0 else 1
-    total_steps = len(train_loader) // gradient_accumulation_steps * epochs
 
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    number_of_batches = os.path.getsize(path) // chunk_size
+    gradient_accumulation_steps = number_of_batches // 500 if number_of_batches // 500 > 0 else 1
+
+    steps_per_epoch = (number_of_batches + gradient_accumulation_steps - 1) // gradient_accumulation_steps
+    total_steps = steps_per_epoch * epochs
+
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, 
-        max_lr=1e-2, 
-        total_steps=total_steps
+        factor=0.5,
+        patience=5,
+        threshold=1e-4,
+        min_lr=1e-4,
     )
+
+    sampler = get_sampler(path, tokenizer)
+
+    # Pre-sample negative examples
+    sampled_negative_examples = torch.multinomial(sampler, batch_size * k * 10, replacement=True).to(device)
 
     for epoch in range(epochs):  # loop over the dataset multiple times
 
@@ -69,62 +123,72 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
         word2vec.train()
 
         running_train_loss = 0.0
-        running_val_loss = 0.0
+        i = 0
+        with tqdm(total=number_of_batches, desc=f'Epoch {epoch + 1}') as pbar:
+            with open(path, 'r') as file:
+                for _ in range(number_of_batches):
+                    chunk = file.read(chunk_size)
+                    ## Process chunk here
 
-        with tqdm(total=len(train_loader), desc=f'Epoch {epoch + 1}') as pbar:
-            for i, data in enumerate(train_loader, 0):
-                # get the inputs; data is a list of [inputs, labels]
-                inputs, labels = data
-                inputs = inputs.to(device)
+                    words = chunk.partition(' ')[-1].rpartition(' ')[0] # Trim partial words
+                    tokens = torch.tensor(tokenizer.encode(words).ids, dtype=torch.int64) # Encode the chunk
+                
+                    examples = get_examples(tokens, window) # Get (input, label) pairs
+                    
+                    inputs_id = examples[:, 0].to(device)
+                    labels_id = examples[:, 1].to(device)
 
-                inputs = inputs.int()
-                labels = labels.int()
+                    random_indices = torch.randint(0, len(sampled_negative_examples), (examples.shape[0]*k,))
+                    negative_examples_id = sampled_negative_examples[random_indices].view(examples.shape[0], k)
 
-                #inputs = nn.functional.one_hot(torch.tensor(inputs), num_classes=len(train.mapping.keys())).float().to(device) #Try this
+                    # forward + backward + optimize
+                    with torch.autocast(device_type=device, dtype=torch.float16, enabled=use_amp):
 
-                labels = word2vec.context_embedding(labels.to(device)) # We want to compare our embedding to the target or negative example
+                        # Get embeddings
+                        positive_examples = word2vec.embedding(inputs_id)
+                        labels = word2vec.context_embedding(labels_id) # We want to compare our embedding to the target or negative example
+                        negative_examples = word2vec.context_embedding(negative_examples_id)
 
-                # forward + backward + optimize
-                with torch.autocast(device_type=device, dtype=torch.float16, enabled=use_amp):
-                    outputs = word2vec.embedding(inputs)
-                    negative_examples = dataset.get_negative_examples(len(inputs)).to(device)
-                    negative_examples =  word2vec.context_embedding(negative_examples)
-                    loss = criterion(outputs, negative_examples, labels)
-                scaler.scale(loss).backward()
+                        # Compute loss
+                        loss = criterion(positive_examples, negative_examples, labels)
+                        loss = loss / gradient_accumulation_steps
+                        
+                    scaler.scale(loss).backward()
+    
+                    running_train_loss += loss.item()
 
-                # Gradient accumulation
-                if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == len(train_loader):
-                    scaler.step(optimizer)
-                    scaler.update()
+                    # Gradient accumulation
+                    if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == number_of_batches:
+                        # Accumulated loss
+                        accumulated_loss = running_train_loss / ((i + 1) / gradient_accumulation_steps)
 
-                    # Step the scheduler
-                    scheduler.step()
+                        # Step the optimizer
+                        scaler.step(optimizer)
+                        scaler.update()
 
-                    # zero the parameter gradients
-                    optimizer.zero_grad()
+                        # Step the scheduler
+                        scheduler.step(accumulated_loss)
 
-                # print statistics
-                running_train_loss += loss.item()
-                pbar.update(1)
-                pbar.set_postfix({'Loss': running_train_loss / (i + 1)})
+                        # zero the parameter gradients
+                        optimizer.zero_grad()
 
-        # Switch model to evaluation
-        word2vec.eval()
+                        # Update progress bar
+                        pbar.update(gradient_accumulation_steps)
+                        # print statistics
+                        pbar.set_postfix({'Loss': accumulated_loss})
 
-        # Average losses
-        avg_train_loss = running_train_loss / len(train_loader)
+                    i+=1
 
-        train_loss_list.append(avg_train_loss)
+            # Average losses
+            avg_train_loss = running_train_loss / (number_of_batches / gradient_accumulation_steps)
 
-        print(f'Epoch: {epoch + 1}, Train loss: {avg_train_loss:.3f}')
+            print(f'Epoch: {epoch + 1}, Train loss: {avg_train_loss:.3f}')
 
     print('Finished Training')
 
     torch.save({
             'model_state_dict': word2vec.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'scaler_state_dict': scaler.state_dict(),
-            'scheduler_state_dict': scheduler.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()
             }, output_path)
 
 def parse_args():
@@ -154,8 +218,8 @@ def parse_args():
     parser.add_argument(
         "--learning-rate",
         type=float,
-        default=1e-3,
-        help="Learning rate for the optimizer. (default: 1e-3)",
+        default=0.025,
+        help="Learning rate for the optimizer. (default: 0.025)",
     )
 
     parser.add_argument(
