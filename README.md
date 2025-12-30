@@ -42,17 +42,24 @@ pip install -r requirements.txt
 
 ### Train a word2vec model
 ```bash
-python3 train.py --dataset-path DATASET_PATH [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH]
+python3 train.py [-h] --dataset-file DATASET_FILE [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH] [--num-workers NUM_WORKERS] [--window-size WINDOW_SIZE] [--negative-samples NEGATIVE_SAMPLES] [--vocab-size VOCAB_SIZE]
 ```
 - dataset path: path of the created dataset
+
+Optional:
 - output file: name the exported model
 - epochs: number of training cycles (you can go very low 1-5 epochs on very large datasets)
 - learning rate: how much should the embeddings be updated at each optimizer step (1e-3 to 1e-4 are good starting numbers)
 - embedding dim: number of dimensions for the representation of a word (100-1000 is a recommended range, 300 is a good value)
-- batch size: how many examples are used to compute the gradient (I recommend using large batches for this task 1024 or more)
+- batch size: how many examples are used to compute the gradient (I recommend using large batches for this task 10000 or more)
 - checkpoint path: resume training of a model
+- learning rate: starting learning rate
+- num workers: number of workers for data loading
+- window: number of context words (5-10 is recommended)
+- negative samples: number of negative examples (recommended: 5 for large file, 20 for small size)
+- vocab size: number of maximum words in the tokenizer vocabulary
 
-### Evaluate emebeddings quality
+### Evaluate embeddings quality
 ```bash
 python3 evaluate.py --checkpoint-path CHECKPOINT_PATH
 ```
@@ -73,7 +80,8 @@ embeddings = torch.load('word2vec_model.pt')['model_state_dict']['embedding.weig
 tokenizer = Tokenizer.from_file(os.getcwd() + '/tokenizer.json')
 
 word = "king"
-word_id = tokenizer.vocab[word]
+word_id = tokenizer.get_vocab()[word]
+word_id = torch.tensor(word_id)
 word_embedding = embeddings[word_id]
 ```
 
@@ -98,15 +106,12 @@ Where $P_n(w_i)$ is the probability of word $w_i$ being selected as a negative s
 For the embeddings initialization I choose to use a uniform distribution with a very low variance. Others have shown that low variance is the most important factor
 for intialization as it avoids exploding gradients.
 
-### Dataset 
-The dataset mainly consists of two tensors of type int16 with size MAX_TRAINING_EXAMPLES, and are loaded on the best found device: cpu, mps or cuda. Be careful as they should be able to fit in memory (As a guide: 100m examples will result in 400 MB of memory, 1B will result in 4 GB of memory used).
-
 ### Learning rate scheduler
 After running mutiple tests, I have found that using ReduceLROnPlateau performs better better especially as it is not dependant on the number of epochs. Indeed, other learning rate schedulers will scale as the number of total steps increase, which is fine when the number of training steps and dataset are fixed but less desirable when they are parameters.
 
 ## Results
 
-To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia. Except for the MAX_TRAINING_EXAMPLES, EPOCHS and WINDOW, I kept the default settings for creating the dataset and training the model.
+To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia.
 
 ### Training for five epochs
 Training time: ≃ 56 minutes on a Macbook M1.
