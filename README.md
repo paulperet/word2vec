@@ -42,9 +42,11 @@ pip install -r requirements.txt
 
 ### Train a word2vec model
 ```bash
-python3 train.py [-h] --dataset-file DATASET_FILE [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH] [--num-workers NUM_WORKERS] [--window-size WINDOW_SIZE] [--negative-samples NEGATIVE_SAMPLES] [--vocab-size VOCAB_SIZE
+python3 train.py [-h] --dataset-file DATASET_FILE [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH] [--num-workers NUM_WORKERS] [--window-size WINDOW_SIZE] [--negative-samples NEGATIVE_SAMPLES] [--vocab-size VOCAB_SIZE]
 ```
 - dataset path: path of the created dataset
+
+Optional:
 - output file: name the exported model
 - epochs: number of training cycles (you can go very low 1-5 epochs on very large datasets)
 - learning rate: how much should the embeddings be updated at each optimizer step (1e-3 to 1e-4 are good starting numbers)
