@@ -1,6 +1,5 @@
 import torch
 from word2vec_model import Word2Vec
-from torch.utils.data import DataLoader
 import torch
 from torch.optim import AdamW
 from tqdm import tqdm
@@ -25,18 +24,23 @@ def nce_loss(positive_examples, negative_examples, labels):
 def get_sampler(path: str, tokenizer: Tokenizer):
     "Returns a unigram distribution raised to the 3/4 power for negative sampling."
     distribution = Counter()
-    with open(path, 'r') as file:
-        while True:
-            chunk = file.read(1024*1024)
-            words = chunk.partition(' ')[-1][::-1].partition(' ')[-1][::-1] # Trim partial words
-            tokens = tokenizer.encode(words).ids
-            distribution.update(tokens)
-            break
-    sampler = torch.ones(len(tokenizer.get_vocab()))
-    for word_id, count in distribution.items():
-        sampler[word_id] = count
-    final_sampler = sampler**0.75 / (sampler**0.75).sum()
-    return final_sampler
+    with tqdm(total=os.path.getsize(path), desc='Computing distribution for negative sampling') as pbar:
+        with open(path, 'r') as file:
+            while True:
+                chunk = file.read(1024*1024)
+                if not chunk:
+                    break
+                words = chunk.partition(' ')[-1].rpartition(' ')[0] # Trim partial words
+                tokens = tokenizer.encode(words).ids
+                distribution.update(tokens)
+                pbar.update(len(chunk))
+        sampler = torch.ones(len(tokenizer.get_vocab()))
+        for word_id, count in distribution.items():
+            sampler[word_id] = count
+        sampler = sampler**0.75
+        sampler = sampler / sampler.sum()
+        print("Done. Starting training...")
+    return sampler
 
 def get_examples(tokens: torch.Tensor, window: int) -> torch.Tensor:
     "Returns a 2D tensor of (input, label) pairs for skip-gram model."
@@ -58,7 +62,7 @@ def get_examples(tokens: torch.Tensor, window: int) -> torch.Tensor:
     examples = torch.stack((tokens[rows], tokens[cols]), dim=1)
     return examples
 
-def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=10000, checkpoint=None, learning_rate=1e-3, num_workers=4, k=5, window=5) -> None:
+def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=10000, checkpoint=None, learning_rate=0.025, num_workers=4, k=5, window=5) -> None:
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda"
@@ -100,10 +104,12 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
     steps_per_epoch = (number_of_batches + gradient_accumulation_steps - 1) // gradient_accumulation_steps
     total_steps = steps_per_epoch * epochs
 
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, 
-        max_lr=1e-2, 
-        total_steps=total_steps
+        factor=0.5,
+        patience=5,
+        threshold=1e-4,
+        min_lr=1e-4,
     )
 
     sampler = get_sampler(path, tokenizer)
@@ -153,18 +159,23 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
 
                     # Gradient accumulation
                     if (i + 1) % gradient_accumulation_steps == 0 or (i + 1) == number_of_batches:
+                        # Accumulated loss
+                        accumulated_loss = running_train_loss / ((i + 1) / gradient_accumulation_steps)
+
+                        # Step the optimizer
                         scaler.step(optimizer)
                         scaler.update()
 
                         # Step the scheduler
-                        scheduler.step()
+                        scheduler.step(accumulated_loss)
 
                         # zero the parameter gradients
                         optimizer.zero_grad()
 
-                    # print statistics
-                    pbar.update(1)
-                    pbar.set_postfix({'Loss': running_train_loss / ((i + 1) / gradient_accumulation_steps)})
+                        # Update progress bar
+                        pbar.update(gradient_accumulation_steps)
+                        # print statistics
+                        pbar.set_postfix({'Loss': accumulated_loss})
 
                     i+=1
 
@@ -177,8 +188,7 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
 
     torch.save({
             'model_state_dict': word2vec.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'scaler_state_dict': scaler.state_dict()
+            'optimizer_state_dict': optimizer.state_dict()
             }, output_path)
 
 def parse_args():
@@ -208,8 +218,8 @@ def parse_args():
     parser.add_argument(
         "--learning-rate",
         type=float,
-        default=1e-3,
-        help="Learning rate for the optimizer. (default: 1e-3)",
+        default=0.025,
+        help="Learning rate for the optimizer. (default: 0.025)",
     )
 
     parser.add_argument(
