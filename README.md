@@ -42,15 +42,20 @@ pip install -r requirements.txt
 
 ### Train a word2vec model
 ```bash
-python3 train.py --dataset-path DATASET_PATH [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH]
+python3 train.py [-h] --dataset-file DATASET_FILE [--output-file OUTPUT_FILE] --epochs EPOCHS [--learning-rate LEARNING_RATE] [--embedding-dim EMBEDDING_DIM] [--batch-size BATCH_SIZE] [--checkpoint-path CHECKPOINT_PATH] [--num-workers NUM_WORKERS] [--window-size WINDOW_SIZE] [--negative-samples NEGATIVE_SAMPLES] [--vocab-size VOCAB_SIZE
 ```
 - dataset path: path of the created dataset
 - output file: name the exported model
 - epochs: number of training cycles (you can go very low 1-5 epochs on very large datasets)
 - learning rate: how much should the embeddings be updated at each optimizer step (1e-3 to 1e-4 are good starting numbers)
 - embedding dim: number of dimensions for the representation of a word (100-1000 is a recommended range, 300 is a good value)
-- batch size: how many examples are used to compute the gradient (I recommend using large batches for this task 1024 or more)
+- batch size: how many examples are used to compute the gradient (I recommend using large batches for this task 10000 or more)
 - checkpoint path: resume training of a model
+- learning rate: starting learning rate
+- num workers: number of workers for data loading
+- window: number of context words (5-10 is recommended)
+- negative samples: number of negative examples (recommended: 5 for large file, 20 for small size)
+- vocab size: number of maximum words in the tokenizer vocabulary
 
 ### Evaluate emebeddings quality
 ```bash
