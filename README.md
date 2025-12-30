@@ -106,15 +106,12 @@ Where $P_n(w_i)$ is the probability of word $w_i$ being selected as a negative s
 For the embeddings initialization I choose to use a uniform distribution with a very low variance. Others have shown that low variance is the most important factor
 for intialization as it avoids exploding gradients.
 
-### Dataset 
-The dataset mainly consists of two tensors of type int16 with size MAX_TRAINING_EXAMPLES, and are loaded on the best found device: cpu, mps or cuda. Be careful as they should be able to fit in memory (As a guide: 100m examples will result in 400 MB of memory, 1B will result in 4 GB of memory used).
-
 ### Learning rate scheduler
 After running mutiple tests, I have found that using ReduceLROnPlateau performs better better especially as it is not dependant on the number of epochs. Indeed, other learning rate schedulers will scale as the number of total steps increase, which is fine when the number of training steps and dataset are fixed but less desirable when they are parameters.
 
 ## Results
 
-To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia. Except for the MAX_TRAINING_EXAMPLES, EPOCHS and WINDOW, I kept the default settings for creating the dataset and training the model.
+To test the program I used the text8 dataset which is a text file containing the first billion characters of Wikipedia.
 
 ### Training for five epochs
 Training time: ≃ 56 minutes on a Macbook M1.
