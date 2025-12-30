@@ -59,7 +59,7 @@ Optional:
 - negative samples: number of negative examples (recommended: 5 for large file, 20 for small size)
 - vocab size: number of maximum words in the tokenizer vocabulary
 
-### Evaluate emebeddings quality
+### Evaluate embeddings quality
 ```bash
 python3 evaluate.py --checkpoint-path CHECKPOINT_PATH
 ```
