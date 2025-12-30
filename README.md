@@ -80,7 +80,8 @@ embeddings = torch.load('word2vec_model.pt')['model_state_dict']['embedding.weig
 tokenizer = Tokenizer.from_file(os.getcwd() + '/tokenizer.json')
 
 word = "king"
-word_id = tokenizer.vocab[word]
+word_id = tokenizer.get_vocab()[word]
+word_id = torch.tensor(word_id)
 word_embedding = embeddings[word_id]
 ```
 
