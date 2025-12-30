@@ -62,14 +62,17 @@ def get_examples(tokens: torch.Tensor, window: int) -> torch.Tensor:
     examples = torch.stack((tokens[rows], tokens[cols]), dim=1)
     return examples
 
-def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=10000, checkpoint=None, learning_rate=0.025, num_workers=4, k=5, window=5) -> None:
+def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batch_size: int=10000, checkpoint=None, learning_rate=0.025, num_workers=4, k=5, window=5, vocab_size=100000, min_frequency=5) -> None:
+
+    # Set device
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda"
 
+    # Train tokenizer
     tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
     tokenizer.pre_tokenizer = Whitespace()
-    trainer = WordLevelTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], vocab_size=100000, min_frequency=5)
+    trainer = WordLevelTrainer(special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"], vocab_size=vocab_size, min_frequency=min_frequency)
     tokenizer.train(files=[os.fspath(path)], trainer=trainer)
     tokenizer.save(os.getcwd() + '/tokenizer.json')
 
@@ -112,16 +115,13 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
         min_lr=1e-4,
     )
 
+    # Get negative sampling distribution
     sampler = get_sampler(path, tokenizer)
 
     # Pre-sample negative examples
     sampled_negative_examples = torch.multinomial(sampler, batch_size * k * 10, replacement=True).to(device)
 
     for epoch in range(epochs):  # loop over the dataset multiple times
-
-        # switch model to training mode
-        word2vec.train()
-
         running_train_loss = 0.0
         i = 0
         with tqdm(total=number_of_batches, desc=f'Epoch {epoch + 1}') as pbar:
@@ -170,12 +170,12 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
                         scheduler.step(accumulated_loss)
 
                         # zero the parameter gradients
-                        optimizer.zero_grad()
+                        optimizer.zero_grad(set_to_none=True)
 
                         # Update progress bar
                         pbar.update(gradient_accumulation_steps)
                         # print statistics
-                        pbar.set_postfix({'Loss': accumulated_loss})
+                        pbar.set_postfix({'Loss': accumulated_loss, 'LR': optimizer.param_groups[0]['lr']})
 
                     i+=1
 
@@ -186,6 +186,7 @@ def train(path: str, output_path: str, epochs: int, embedding_dim: int=300, batc
 
     print('Finished Training')
 
+    # Save the model
     torch.save({
             'model_state_dict': word2vec.state_dict(),
             'optimizer_state_dict': optimizer.state_dict()
@@ -195,7 +196,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--dataset-path",
+        "--dataset-file",
         type=Path,
         required=True,
         help="Path to the dataset file. (.pt)",
@@ -250,6 +251,34 @@ def parse_args():
         help="Number of workers for data loading. (default: 4)",
     )
 
+    parser.add_argument(
+        "--window-size",
+        type=int,
+        default=5,
+        help="Context window size for training. (default: 5)",
+    )
+
+    parser.add_argument(
+        "--negative-samples",
+        type=int,
+        default=5,
+        help="Number of negative samples per positive example. (default: 5)",
+    )
+
+    parser.add_argument(
+        "--min-frequency",
+        type=int,
+        default=5,
+        help="Minimum frequency for vocabulary inclusion. (default: 5)",
+    )
+
+    parser.add_argument(
+        "--vocab-size",
+        type=int,
+        default=100000,
+        help="Vocabulary size for training. (default: 100000)",
+    )
+
     args = parser.parse_args()
     return args
 
@@ -257,12 +286,15 @@ if __name__ == "__main__":
     args = parse_args()
 
     train(
-        path=args.dataset_path,
+        path=args.dataset_file,
         output_path=args.output_file,
         epochs=args.epochs,
         embedding_dim=args.embedding_dim,
         batch_size=args.batch_size,
         checkpoint=args.checkpoint_path,
         learning_rate=args.learning_rate,
-        num_workers=args.num_workers
+        num_workers=args.num_workers,
+        window=args.window_size,
+        k=args.negative_samples,
+        vocab_size=args.vocab_size,
     )
